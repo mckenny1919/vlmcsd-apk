@@ -120,6 +120,8 @@ jobs:
           grep -E "PKG_VERSION|PKG_SOURCE|PKG_BUILD_DIR" package/vlmcsd/Makefile
           echo "vlmcsd 包源码已引入"
           ls -la package/vlmcsd/
+          echo "=== 完整 Makefile ==="
+          cat package/vlmcsd/Makefile
 
       - name: 更新 feeds
         working-directory: sdk
@@ -155,11 +157,21 @@ jobs:
           
           echo "=== 编译完成，查找产物 ==="
           find bin/ -name "vlmcsd_*.apk" -type f
+          echo "=== 编译退出码: $? ==="
+          echo "=== 查找所有 apk 文件 ==="
+          find bin/ -name "*.apk" -type f 2>/dev/null
+          echo "=== 查找 vlmcsd 相关文件 ==="
+          find bin/ -iname "*vlmcsd*" -type f 2>/dev/null
+          echo "=== 查看 build_dir 状态 ==="
+          ls -la build_dir/target-x86_64_musl/vlmcsd-*/ 2>/dev/null || echo "build_dir 中没有 vlmcsd"
+          ls -ltr sdk/bin/
 
       - name: 收集编译产物
         run: |
           mkdir -p output
-          
+          ls -ltr sdk/bin/
+          # 全面查找 vlmcsd apk（不限制路径深度）
+          find sdk/ -name "*vlmcsd*.apk" -type f -exec cp {} output/ \; 2>/dev/null
           # 复制 vlmcsd apk
           find sdk/bin/ -name "vlmcsd_*.apk" -exec cp {} output/ \;
           
