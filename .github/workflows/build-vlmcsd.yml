@@ -1,68 +1,155 @@
-# deepseek输出，未最终成功编译
-name: Build vlmcsd apk for OpenWrt x86/64
+name: Build vlmcsd for OpenWrt 25.12.5 x86_64
 
 on:
-  workflow_dispatch:          # 手动触发
   push:
+    branches: [ main ]
     paths:
-      - '.github/workflows/build-vlmcsd.yml'  # 工作流自身变更时触发
-  schedule:
-    - cron: '0 0 1 * *'       # 每月1日自动编译（可选）
+      - '.github/workflows/build-vlmcsd.yml'
+  workflow_dispatch:
+    inputs:
+      openwrt_version:
+        description: 'OpenWrt 版本号'
+        required: true
+        default: '25.12.2'
+      target:
+        description: '目标平台 (target/subtarget)'
+        required: true
+        default: 'x86/64'
+      vlmcsd_repo:
+        description: 'vlmcsd 包源码仓库'
+        required: true
+        default: 'https://github.com/cokebar/openwrt-vlmcsd.git'
+      vlmcsd_branch:
+        description: 'vlmcsd 分支/标签'
+        required: true
+        default: 'master'
+
+env:
+  OPENWRT_VERSION: ${{ github.event.inputs.openwrt_version || '25.12.2' }}
+  TARGET: ${{ github.event.inputs.target || 'x86/64' }}
+  VLMCSD_REPO: ${{ github.event.inputs.vlmcsd_repo || 'https://github.com/cokebar/openwrt-vlmcsd.git' }}
+  VLMCSD_BRANCH: ${{ github.event.inputs.vlmcsd_branch || 'master' }}
 
 jobs:
   build:
     runs-on: ubuntu-22.04
-
+    
     steps:
-      - name: Install build dependencies
-        run: |
-          sudo -E apt-get -qq update
-          sudo -E apt-get -qq install autoconf automake binutils bison build-essential bzip2 cpio curl flex gawk gettext gcc-multilib g++-multilib git haveged libncurses5-dev libncursesw5-dev libpython3-dev libssl-dev libtool p7zip p7zip-full patch pkgconf python3 python3-setuptools rsync squashfs-tools swig texinfo upx-ucl unzip vim wget xxd zlib1g-dev clang g++ file libncurses-dev subversion gettext python3 python3-distutils wget xz-utils
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - name: Download OpenWrt SDK for x86/64
+      - name: 安装编译依赖
         run: |
-          # 下载主线快照 SDK（可调整为固定版本）
-          SDK_URL="https://archive.openwrt.org/releases/25.12.2/targets/x86/64/openwrt-sdk-25.12.2-x86-64_gcc-14.3.0_musl.Linux-x86_64.tar.zst"
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential ccache ecj fastjar file g++ gawk \
+            gettext git java-propose-classpath libelf-dev libncurses5-dev \
+            libncursesw5-dev libssl-dev python3 python3-distutils python3-setuptools \
+            python3-pyelftools unzip wget rsync subversion swig time xsltproc zlib1g-dev \
+            zstd
+
+      - name: 解析目标平台信息
+        id: parse
+        run: |
+          TARGET_ARCH=$(echo "$TARGET" | cut -d'/' -f1)
+          SUBTARGET=$(echo "$TARGET" | cut -d'/' -f2)
+          echo "target_arch=$TARGET_ARCH" >> $GITHUB_OUTPUT
+          echo "subtarget=$SUBTARGET" >> $GITHUB_OUTPUT
+          
+          SDK_BASE_URL="https://downloads.openwrt.org/releases/${OPENWRT_VERSION}/targets/${TARGET_ARCH}/${SUBTARGET}/"
+          echo "sdk_base_url=$SDK_BASE_URL" >> $GITHUB_OUTPUT
+          
+          # 获取 SDK 文件名
+          SDK_FILENAME=$(curl -sL "$SDK_BASE_URL" | grep -oP 'openwrt-sdk-[^"]+\.tar\.zst' | head -1)
+          if [ -z "$SDK_FILENAME" ]; then
+            echo "::error::无法找到 SDK 文件，请检查版本和目标平台"
+            exit 1
+          fi
+          echo "sdk_filename=$SDK_FILENAME" >> $GITHUB_OUTPUT
+          echo "SDK 文件名: $SDK_FILENAME"
+
+      - name: 缓存 SDK
+        id: cache-sdk
+        uses: actions/cache@v4
+        with:
+          path: sdk
+          key: openwrt-sdk-${{ env.OPENWRT_VERSION }}-${{ steps.parse.outputs.target_arch }}-${{ steps.parse.outputs.subtarget }}
+
+      - name: 下载并解压 OpenWrt SDK
+        if: steps.cache-sdk.outputs.cache-hit != 'true'
+        run: |
+          SDK_URL="${{ steps.parse.outputs.sdk_base_url }}${{ steps.parse.outputs.sdk_filename }}"
+          echo "下载 SDK: $SDK_URL"
+          
           wget -q "$SDK_URL" -O sdk.tar.zst
-          tar --zstd -xf sdk.tar.zst
-          # echo "SDK_DIR=$(ls -d openwrt-sdk-* | head -1)" >> $GITHUB_ENV
-          echo "SDK_DIR=openwrt-sdk-25.12.2-x86-64_gcc-14.3.0_musl.Linux-x86_64" >> $GITHUB_ENV
+          
+          # 解压
+          mkdir -p sdk
+          tar -I zstd -xf sdk.tar.zst -C sdk --strip-components=1
+          
+          echo "SDK 解压完成"
+          ls sdk/
 
-
-      - name: Add vlmcsd package
+      - name: 引入 vlmcsd 包源码
+        working-directory: sdk
         run: |
-          git clone --depth=1 https://github.com/cokebar/openwrt-vlmcsd.git
-          mkdir -p $SDK_DIR/package/vlmcsd
-          # cp -r openwrt-vlmcsd/vlmcsd $SDK_DIR/package/
-          cp -r openwrt-vlmcsd/* $SDK_DIR/package/vlmcsd/
-          # 修正 Makefile：使用有效的 Git 标签，并调整版本号符合 APK 规范
-          cd $SDK_DIR/package/vlmcsd
-          sed -i 's/^PKG_VERSION:=.*/PKG_VERSION:=1112/' Makefile
-          sed -i 's/^PKG_SOURCE_VERSION:=.*/PKG_SOURCE_VERSION:=svn1112/' Makefile
-          # 确保通过 Git 获取源码
-          if grep -q "^PKG_SOURCE_PROTO" Makefile; then
-            sed -i 's/^PKG_SOURCE_PROTO:=.*/PKG_SOURCE_PROTO:=git/' Makefile
-          else
-            echo "PKG_SOURCE_PROTO:=git" >> Makefile
-          fi
-          # 指定正确的 Git 仓库地址
-          if grep -q "^PKG_SOURCE_URL" Makefile; then
-            sed -i 's|^PKG_SOURCE_URL:=.*|PKG_SOURCE_URL:=https://github.com/cokebar/vlmcsd|' Makefile
-          else
-            echo "PKG_SOURCE_URL:=https://github.com/cokebar/vlmcsd" >> Makefile
-          fi
-          cd $SDK_DIR
+          # 克隆 vlmcsd 到 package 目录
+          git clone --depth 1 -b "$VLMCSD_BRANCH" "$VLMCSD_REPO" package/vlmcsd
+          
+          echo "vlmcsd 包源码已引入"
+          ls -la package/vlmcsd/
 
-      - name: Update feeds and compile vlmcsd
-        working-directory: ${{ env.SDK_DIR }}
+      - name: 更新 feeds
+        working-directory: sdk
         run: |
-          # ./scripts/feeds update -a
-          # ./scripts/feeds install -a
+          ./scripts/feeds update -a
+          ./scripts/feeds install -a
+
+      - name: 配置编译选项
+        working-directory: sdk
+        run: |
+          # 生成默认配置
           make defconfig
-          make package/vlmcsd/compile V=s
+          
+          # 启用 vlmcsd 为模块（M）
+          if grep -q "CONFIG_PACKAGE_vlmcsd" .config; then
+            sed -i 's/# CONFIG_PACKAGE_vlmcsd is not set/CONFIG_PACKAGE_vlmcsd=m/' .config
+          else
+            echo "CONFIG_PACKAGE_vlmcsd=m" >> .config
+          fi
+          
+          # 重新生成配置
+          make defconfig
+          
+          # 验证配置
+          echo "=== vlmcsd 配置 ==="
+          grep "vlmcsd" .config || echo "未找到 vlmcsd 配置项"
 
-      - name: Find and upload apk artifact
+      - name: 编译 vlmcsd
+        working-directory: sdk
+        run: |
+          # 编译 vlmcsd 及其依赖
+          make package/vlmcsd/compile V=s -j$(nproc)
+          
+          echo "=== 编译完成，查找产物 ==="
+          find bin/ -name "vlmcsd_*.apk" -type f
+
+      - name: 收集编译产物
+        run: |
+          mkdir -p output
+          
+          # 复制 vlmcsd apk
+          find sdk/bin/ -name "vlmcsd_*.apk" -exec cp {} output/ \;
+          
+          # 复制依赖包（通常 libpthread 已内置，这里保险起见也复制）
+          find sdk/bin/ -name "libpthread_*.apk" -exec cp {} output/ \; 2>/dev/null || true
+          
+          echo "=== 产物列表 ==="
+          ls -lh output/
+
+      - name: 上传 Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: vlmcsd-x86_64-apk
-          path: ${{ env.SDK_DIR }}/bin/packages/x86_64/base/vlmcsd_*.apk
+          name: vlmcsd-${{ env.OPENWRT_VERSION }}-${{ steps.parse.outputs.target_arch }}-${{ steps.parse.outputs.subtarget }}
+          path: output/
+          retention-days: 30
