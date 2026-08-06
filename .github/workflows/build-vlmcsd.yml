@@ -33,6 +33,8 @@ jobs:
           mkdir -p $SDK_DIR/package/vlmcsd
           # cp -r openwrt-vlmcsd/vlmcsd $SDK_DIR/package/
           cp -r openwrt-vlmcsd/* $SDK_DIR/package/vlmcsd/
+          # 修正 APK 版本格式（必须数字开头）
+          sed -i 's/PKG_VERSION:=svn1113/PKG_VERSION:=1113/' $SDK_DIR/package/vlmcsd/Makefile
 
       - name: Update feeds and compile vlmcsd
         working-directory: ${{ env.SDK_DIR }}
