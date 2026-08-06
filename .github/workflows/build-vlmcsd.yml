@@ -23,6 +23,10 @@ on:
         description: 'vlmcsd 分支/标签'
         required: true
         default: 'master'
+      create_release:
+        description: '是否创建 GitHub Release'
+        type: boolean
+        default: true
 
 env:
   OPENWRT_VERSION: ${{ github.event.inputs.openwrt_version || '25.12.2' }}
@@ -89,7 +93,6 @@ jobs:
           
           echo "SDK 解压完成"
           ls sdk/
-
 
       - name: 引入 vlmcsd 包源码并修复版本号
         working-directory: sdk
@@ -159,7 +162,6 @@ jobs:
           echo "=== 查看 build_dir 状态 ==="
           ls -la build_dir/target-x86_64_musl/vlmcsd-*/ 2>/dev/null || echo "build_dir 中没有 vlmcsd"
 
-
       - name: 收集编译产物
         run: |
           mkdir -p output
@@ -172,13 +174,6 @@ jobs:
             echo "::warning::未找到 vlmcsd，所有 apk 位置："
             find sdk/bin/ -name "*.apk" -type f
           fi          
-          # find sdk/ -name "*vlmcsd*.apk" -type f -exec cp {} output/ \; 2>/dev/null
-          # 复制 vlmcsd apk
-          # find sdk/bin/ -name "vlmcsd_*.apk" -exec cp {} output/ \;
-          
-          # 复制依赖包（通常 libpthread 已内置，这里保险起见也复制）
-          # find sdk/bin/ -name "libpthread_*.apk" -exec cp {} output/ \; 2>/dev/null || true
-          
           echo "=== 产物列表 ==="
           ls -lh output/
 
@@ -188,3 +183,73 @@ jobs:
           name: vlmcsd-${{ env.OPENWRT_VERSION }}-${{ steps.parse.outputs.target_arch }}-${{ steps.parse.outputs.subtarget }}
           path: output/
           retention-days: 30
+
+      # ========== 以下为新增的 Release 发布步骤 ==========
+
+      - name: 生成 Release 说明
+        if: ${{ github.event.inputs.create_release == 'true' || github.event_name == 'push' }}
+        run: |
+          APK_FILE=$(ls output/*.apk 2>/dev/null | head -1)
+          APK_NAME=$(basename "$APK_FILE" 2>/dev/null)
+          APK_SIZE=$(ls -lh "$APK_FILE" 2>/dev/null | awk '{print $5}')
+          
+          cat > release.txt << EOF
+          ## vlmcsd for OpenWrt ${{ env.OPENWRT_VERSION }}
+          
+          ### 编译信息
+          | 项目 | 值 |
+          |------|-----|
+          | OpenWrt 版本 | ${{ env.OPENWRT_VERSION }} |
+          | 目标平台 | ${{ env.TARGET }} |
+          | 架构 | x86_64 |
+          | vlmcsd 版本 | 1113-r1 |
+          | 包格式 | apk |
+          | 文件名 | $APK_NAME |
+          | 文件大小 | $APK_SIZE |
+          
+          ### 安装方法
+          \`\`\`bash
+          # 上传到路由器后安装
+          scp $APK_NAME root@192.168.1.1:/tmp/
+          ssh root@192.168.1.1
+          apk add /tmp/$APK_NAME
+          
+          # 启用并启动服务
+          /etc/init.d/vlmcsd enable
+          /etc/init.d/vlmcsd start
+          
+          # 验证服务状态
+          netstat -tlnp | grep 1688
+          \`\`\`
+          
+          ### 包内容
+          - \`/usr/bin/vlmcsd\` - KMS 服务端主程序
+          - \`/usr/bin/vlmcs\` - KMS 客户端测试工具
+          - \`/etc/vlmcsd.ini\` - 配置文件
+          - \`/etc/vlmcsd.kmd\` - KMS 数据文件
+          - \`/etc/init.d/vlmcsd\` - 启动脚本
+          
+          ### 依赖
+          - libc（系统内置）
+          - libpthread（系统内置）
+          
+          > 自动编译于 GitHub Actions
+          > 编译时间: $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+          EOF
+          
+          echo "=== Release 说明已生成 ==="
+          cat release.txt
+
+      - name: 发布到 GitHub Release
+        if: ${{ github.event.inputs.create_release == 'true' || github.event_name == 'push' }}
+        uses: softprops/action-gh-release@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: vlmcsd-${{ env.OPENWRT_VERSION }}-x86_64
+          name: vlmcsd ${{ env.OPENWRT_VERSION }} (x86_64)
+          body_path: release.txt
+          files: output/*.apk
+          draft: false
+          prerelease: false
+          fail_on_unmatched_files: true
