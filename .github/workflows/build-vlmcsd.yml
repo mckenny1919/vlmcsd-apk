@@ -33,8 +33,23 @@ jobs:
           mkdir -p $SDK_DIR/package/vlmcsd
           # cp -r openwrt-vlmcsd/vlmcsd $SDK_DIR/package/
           cp -r openwrt-vlmcsd/* $SDK_DIR/package/vlmcsd/
-          # 修正 APK 版本格式（必须数字开头）
-          sed -i 's/PKG_VERSION:=svn1113/PKG_VERSION:=1113/' $SDK_DIR/package/vlmcsd/Makefile
+          # 修正 Makefile：使用有效的 Git 标签，并调整版本号符合 APK 规范
+          cd $SDK_DIR/package/vlmcsd
+          sed -i 's/^PKG_VERSION:=.*/PKG_VERSION:=1112/' Makefile
+          sed -i 's/^PKG_SOURCE_VERSION:=.*/PKG_SOURCE_VERSION:=svn1112/' Makefile
+          # 确保通过 Git 获取源码
+          if grep -q "^PKG_SOURCE_PROTO" Makefile; then
+            sed -i 's/^PKG_SOURCE_PROTO:=.*/PKG_SOURCE_PROTO:=git/' Makefile
+          else
+            echo "PKG_SOURCE_PROTO:=git" >> Makefile
+          fi
+          # 指定正确的 Git 仓库地址
+          if grep -q "^PKG_SOURCE_URL" Makefile; then
+            sed -i 's|^PKG_SOURCE_URL:=.*|PKG_SOURCE_URL:=https://github.com/cokebar/vlmcsd|' Makefile
+          else
+            echo "PKG_SOURCE_URL:=https://github.com/cokebar/vlmcsd" >> Makefile
+          fi
+          cd $SDK_DIR
 
       - name: Update feeds and compile vlmcsd
         working-directory: ${{ env.SDK_DIR }}
