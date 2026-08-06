@@ -37,8 +37,9 @@ jobs:
       - name: Update feeds and compile vlmcsd
         working-directory: ${{ env.SDK_DIR }}
         run: |
-          ./scripts/feeds update -a
-          ./scripts/feeds install -a
+          # ./scripts/feeds update -a
+          # ./scripts/feeds install -a
+          make defconfig
           make package/vlmcsd/compile V=s
 
       - name: Find and upload apk artifact
