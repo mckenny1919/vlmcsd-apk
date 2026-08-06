@@ -125,6 +125,25 @@ jobs:
           echo "=== vlmcsd 配置 ==="
           grep "vlmcsd" .config || echo "未找到 vlmcsd 配置项"
 
+      - name: 引入 vlmcsd 包源码并修复版本号
+        working-directory: sdk
+        run: |
+          # 克隆 vlmcsd 到 package 目录
+          git clone --depth 1 -b "$VLMCSD_BRANCH" "$VLMCSD_REPO" package/vlmcsd
+          
+          # ===== 关键修复：适配 OpenWrt 25.12.5 apk 格式的版本号要求 =====
+          # apk 版本号必须以数字开头，svn1113 不符合规范，改为 1113
+          sed -i 's/PKG_VERSION:=svn1113/PKG_VERSION:=1113/' package/vlmcsd/Makefile
+          
+          # 固定源码下载文件名（保持原 svn1113.tar.gz）
+          sed -i 's/PKG_SOURCE:=$(PKG_VERSION).tar.gz/PKG_SOURCE:=svn1113.tar.gz/' package/vlmcsd/Makefile
+          
+          # 构建目录保持原名（确保源码解压路径正确）
+          sed -i 's|PKG_BUILD_DIR:=$(BUILD_DIR)/$(PKG_NAME)-$(PKG_VERSION)|PKG_BUILD_DIR:=$(BUILD_DIR)/$(PKG_NAME)-svn1113|' package/vlmcsd/Makefile
+          
+          echo "=== 修复后的 Makefile 版本相关行 ==="
+          grep -E "PKG_VERSION|PKG_SOURCE|PKG_BUILD_DIR" package/vlmcsd/Makefile
+
       - name: 编译 vlmcsd
         working-directory: sdk
         run: |
