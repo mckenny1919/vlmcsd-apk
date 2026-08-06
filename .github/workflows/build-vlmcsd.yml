@@ -1,5 +1,3 @@
-yaml
-
 name: Build vlmcsd apk for OpenWrt x86/64
 
 on:
@@ -25,7 +23,7 @@ jobs:
       - name: Download OpenWrt SDK for x86/64
         run: |
           # 下载主线快照 SDK（可调整为固定版本）
-          SDK_URL="https://downloads.openwrt.org/snapshots/targets/x86/64/openwrt-sdk-x86-64_gcc-13.3.0_musl.Linux-x86_64.tar.xz"
+          SDK_URL="https://archive.openwrt.org/releases/25.12.2/targets/x86/64/openwrt-sdk-25.12.2-x86-64_gcc-14.3.0_musl.Linux-x86_64.tar.zst"
           wget -q "$SDK_URL" -O sdk.tar.zst
           tar --zstd -xf sdk.tar.zst
           echo "SDK_DIR=$(ls -d openwrt-sdk-* | head -1)" >> $GITHUB_ENV
