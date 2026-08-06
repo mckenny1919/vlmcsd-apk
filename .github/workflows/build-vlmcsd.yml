@@ -10,7 +10,7 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
 
     steps:
       - name: Install build dependencies
@@ -32,7 +32,9 @@ jobs:
       - name: Add vlmcsd package
         run: |
           git clone --depth=1 https://github.com/cokebar/openwrt-vlmcsd.git
-          cp -r openwrt-vlmcsd/vlmcsd $SDK_DIR/package/
+          mkdir -p $SDK_DIR/package/vlmcsd
+          # cp -r openwrt-vlmcsd/vlmcsd $SDK_DIR/package/
+          cp -r openwrt-vlmcsd/* $SDK_DIR/package/vlmcsd/
 
       - name: Update feeds and compile vlmcsd
         working-directory: ${{ env.SDK_DIR }}
