@@ -2,7 +2,7 @@ name: Build vlmcsd for OpenWrt 25.12.2 x86_64
 
 on:
   push:
-    branches: [ main ]
+    branches: [ vlmcsd-release ]
     paths:
       - '.github/workflows/build-vlmcsd.yml'
   workflow_dispatch:
