@@ -90,12 +90,6 @@ jobs:
           echo "SDK 解压完成"
           ls sdk/
 
-      - name: 引入 vlmcsd 包源码
-        working-directory: sdk
-        run: |
-          # 克隆 vlmcsd 到 package 目录
-          git clone --depth 1 -b "$VLMCSD_BRANCH" "$VLMCSD_REPO" package/vlmcsd
-
 
       - name: 引入 vlmcsd 包源码并修复版本号
         working-directory: sdk
