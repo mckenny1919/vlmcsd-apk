@@ -1,4 +1,4 @@
-name: Build vlmcsd for OpenWrt 25.12.5 x86_64
+name: Build vlmcsd for OpenWrt 25.12.2 x86_64
 
 on:
   push:
