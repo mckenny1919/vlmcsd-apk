@@ -1,0 +1,50 @@
+yaml
+
+name: Build vlmcsd apk for OpenWrt x86/64
+
+on:
+  workflow_dispatch:          # 手动触发
+  push:
+    paths:
+      - '.github/workflows/build-vlmcsd.yml'  # 工作流自身变更时触发
+  schedule:
+    - cron: '0 0 1 * *'       # 每月1日自动编译（可选）
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Install build dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y build-essential libncurses-dev gawk git \
+            subversion libssl-dev gettext zlib1g-dev file python3 \
+            python3-distutils wget xz-utils
+
+      - name: Download OpenWrt SDK for x86/64
+        run: |
+          # 下载主线快照 SDK（可调整为固定版本）
+          SDK_URL="https://downloads.openwrt.org/snapshots/targets/x86/64/openwrt-sdk-x86-64_gcc-13.3.0_musl.Linux-x86_64.tar.xz"
+          wget -q "$SDK_URL" -O sdk.tar.zst
+          tar --zstd -xf sdk.tar.zst
+          echo "SDK_DIR=$(ls -d openwrt-sdk-* | head -1)" >> $GITHUB_ENV
+
+
+      - name: Add vlmcsd package
+        run: |
+          git clone --depth=1 https://github.com/cokebar/openwrt-vlmcsd.git
+          cp -r openwrt-vlmcsd/vlmcsd $SDK_DIR/package/
+
+      - name: Update feeds and compile vlmcsd
+        working-directory: ${{ env.SDK_DIR }}
+        run: |
+          ./scripts/feeds update -a
+          ./scripts/feeds install -a
+          make package/vlmcsd/compile V=s
+
+      - name: Find and upload apk artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: vlmcsd-x86_64-apk
+          path: ${{ env.SDK_DIR }}/bin/packages/x86_64/base/vlmcsd_*.apk
