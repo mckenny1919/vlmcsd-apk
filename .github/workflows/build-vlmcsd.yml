@@ -158,19 +158,26 @@ jobs:
           find bin/ -iname "*vlmcsd*" -type f 2>/dev/null
           echo "=== 查看 build_dir 状态 ==="
           ls -la build_dir/target-x86_64_musl/vlmcsd-*/ 2>/dev/null || echo "build_dir 中没有 vlmcsd"
-          ls -ltr sdk/bin/
+
 
       - name: 收集编译产物
         run: |
           mkdir -p output
-          ls -ltr sdk/bin/
           # 全面查找 vlmcsd apk（不限制路径深度）
-          find sdk/ -name "*vlmcsd*.apk" -type f -exec cp {} output/ \; 2>/dev/null
+          find sdk/ -name "*vlmcsd*.apk" -type f -exec cp {} output/ \;
+          echo "=== 产物列表 ==="
+          ls -lh output/
+          # 兜底：如果为空，打印所有 apk 位置
+          if [ ! -s output/ ] || [ -z "$(ls -A output/)" ]; then
+            echo "::warning::未找到 vlmcsd，所有 apk 位置："
+            find sdk/bin/ -name "*.apk" -type f
+          fi          
+          # find sdk/ -name "*vlmcsd*.apk" -type f -exec cp {} output/ \; 2>/dev/null
           # 复制 vlmcsd apk
-          find sdk/bin/ -name "vlmcsd_*.apk" -exec cp {} output/ \;
+          # find sdk/bin/ -name "vlmcsd_*.apk" -exec cp {} output/ \;
           
           # 复制依赖包（通常 libpthread 已内置，这里保险起见也复制）
-          find sdk/bin/ -name "libpthread_*.apk" -exec cp {} output/ \; 2>/dev/null || true
+          # find sdk/bin/ -name "libpthread_*.apk" -exec cp {} output/ \; 2>/dev/null || true
           
           echo "=== 产物列表 ==="
           ls -lh output/
