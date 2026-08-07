@@ -2,7 +2,7 @@ name: Build vlmcsd for OpenWrt 25.12.2 x86_64
 
 on:
   push:
-    branches: [ vlmcsd-release ]
+    branches: [ vlmcsd-arm ]
     paths:
       - '.github/workflows/build-vlmcsd.yml'
   workflow_dispatch:
@@ -14,7 +14,7 @@ on:
       target:
         description: '目标平台 (target/subtarget)'
         required: true
-        default: 'x86/64'
+        default: 'ipq40xx'
       vlmcsd_repo:
         description: 'vlmcsd 包源码仓库'
         required: true
